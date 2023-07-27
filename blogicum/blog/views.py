@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.views.generic import (
@@ -14,7 +14,9 @@ from django.utils import timezone
 
 from .models import Post, Category, Comment
 from .forms import PostForm, CommentForm, ProfileEditForm
-# from .utils import get_post_data
+
+User = get_user_model()
+MAX_QUANTITY_POST = 10  # максимальное кол-во постов
 
 
 def get_post_data(kwargs):
@@ -51,10 +53,6 @@ class CommentMixin(LoginRequiredMixin, View):
                        kwargs={'id': self.kwargs['post_id']})
 
 
-User = get_user_model()
-MAX_QUANTITY_POST = 10  # максимальное кол-во постов
-
-
 class IndexListView(ListView):
     model = Post
     paginate_by = MAX_QUANTITY_POST
@@ -78,12 +76,23 @@ class PostDetailView(DetailView):
     template_name = 'blog/detail.html'
 
     def get_object(self, queryset=None):
+        if self.request.user.is_authenticated:
+            return get_object_or_404(
+                self.model.objects.select_related(
+                    'location', 'author', 'category').filter(
+                        Q(author=self.request.user) | (
+                            Q(pub_date__lte=timezone.now()) &
+                            Q(is_published=True) &
+                            Q(category__is_published=True)
+                        ), pk=self.kwargs['id']
+                    )
+            )
         return get_object_or_404(
-            self.model.objects.select_related(
-                'location', 'author', 'category').filter(
-                    pub_date__lte=timezone.now(),
-                    is_published=True,
-                    category__is_published=True), pk=self.kwargs['id'])
+                self.model.objects.select_related(
+                    'location', 'author', 'category').filter(
+                        pub_date__lte=timezone.now(),
+                        is_published=True,
+                        category__is_published=True), pk=self.kwargs['id'])
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -98,13 +107,14 @@ class CategoryPostsListView(ListView):
     template_name = 'blog/category.html'
 
     def get_queryset(self):
-        category = get_object_or_404(
+        category_post = get_object_or_404(
             Category,
             slug=self.kwargs['category_slug'],
             is_published=True)
         return (
-            category.post.select_related(
+            self.model.objects.select_related(
                 'location', 'author', 'category').filter(
+                    category=category_post,
                     is_published=True,
                     pub_date__lte=timezone.now()).annotate(
                     comment_count=Count("comment")).order_by("-pub_date"))
