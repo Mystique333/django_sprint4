@@ -1,12 +1,13 @@
 from django import forms
 from django.contrib.auth import get_user_model
 
-from .models import Post, Comment
+from .models import Comment, Post
 
 User = get_user_model()
 
 
 class PostForm(forms.ModelForm):
+
     class Meta:
         model = Post
         exclude = ('author', 'created_at',)
@@ -17,12 +18,17 @@ class PostForm(forms.ModelForm):
 
 
 class CommentForm(forms.ModelForm):
+
     class Meta:
         model = Comment
         fields = ('text',)
+        widgets = {
+            'text': forms.Textarea(attrs={'cols': 5, 'rows': 10}),
+        }
 
 
 class ProfileEditForm(forms.ModelForm):
+
     class Meta:
         model = User
         fields = ('first_name', 'last_name', 'username', 'email')
