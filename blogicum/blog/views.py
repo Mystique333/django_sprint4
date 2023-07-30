@@ -10,7 +10,8 @@ from django.views.generic import (
     DetailView,
     ListView,
     UpdateView,
-    View)
+    View
+)
 
 from .forms import CommentForm, PostForm, ProfileEditForm
 from .models import Category, Comment, Post
@@ -78,13 +79,10 @@ class CommonListMixin(ListView):
         ).order_by("-pub_date")
         return queryset_filter
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        return context
-
 
 class PostVerifyMixin(LoginRequiredMixin):
     form_class = PostForm
+    pk_url_kwarg = 'post_id'
 
     def dispatch(self, request, *args, **kwargs):
         if self.get_object().author != request.user:
@@ -124,26 +122,16 @@ class PostDetailView(DetailView):
 
 
 class CategoryPostsListView(CommonListMixin):
-    model = Post
-    paginate_by = MAX_QUANTITY_POST
     template_name = 'blog/category.html'
 
     def get_queryset(self):
-        category_post = get_object_or_404(
+        self.category = get_object_or_404(
             Category,
             slug=self.kwargs['category_slug'],
             is_published=True
         )
-        self.category = (
-            self.model.objects.select_related(
-                'location', 'author', 'category').filter(
-                    category=category_post,
-                    is_published=True,
-                    pub_date__lte=timezone.now()).annotate(
-                    comment_count=Count("comments")
-            ).order_by("-pub_date")
-        )
-        return self.category
+        return (super().get_queryset().select_related('category')
+                .filter(category=self.category))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -163,11 +151,10 @@ class PostCreateView(LoginRequiredMixin, PostMixin, CreateView):
 
 
 class PostUpdateView(PostVerifyMixin, PostMixin, UpdateView):
-    pk_url_kwarg = 'post_id'
+    pass
 
 
 class PostDeleteView(PostVerifyMixin, PostMixin, DeleteView):
-    pk_url_kwarg = 'post_id'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -182,29 +169,25 @@ class ProfileListView(CommonListMixin):
     template_name = 'blog/profile.html'
 
     def get_queryset(self):
-        username = self.kwargs['username']
-        if (self.request.user.is_authenticated
-                and self.request.user.username == username):
-
-            return (
-                self.model.objects.select_related('author')
-                .filter(author__username=username)
-                .annotate(comment_count=Count("comments"))
-                .order_by("-pub_date")
-            )
-        return (
-            self.model.objects.select_related('author')
-            .filter(author__username=username, pub_date__lte=timezone.now())
-            .annotate(comment_count=Count("comments"))
-            .order_by("-pub_date")
-        )
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['profile'] = get_object_or_404(
+        self.user = get_object_or_404(
             User,
             username=self.kwargs['username']
         )
+
+        if (self.request.user == self.user):
+
+            return (
+                self.model.objects.select_related('author')
+                .filter(author__username=self.user.username)
+                .annotate(comment_count=Count("comments"))
+                .order_by("-pub_date")
+            )
+        queryset = super().get_queryset()
+        return queryset.select_related('author')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['profile'] = self.user
         return context
 
 
