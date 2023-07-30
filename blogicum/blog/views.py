@@ -183,8 +183,8 @@ class ProfileListView(CommonListMixin):
 
     def get_queryset(self):
         username = self.kwargs['username']
-        if (self.request.user.is_authenticated and
-                self.request.user.username == username):
+        if (self.request.user.is_authenticated
+                and self.request.user.username == username):
 
             return (
                 self.model.objects.select_related('author')
