@@ -130,8 +130,7 @@ class CategoryPostsListView(CommonListMixin):
             slug=self.kwargs['category_slug'],
             is_published=True
         )
-        return (super().get_queryset().select_related('category')
-                .filter(category=self.category))
+        return super().get_queryset().filter(category=self.category)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -174,7 +173,7 @@ class ProfileListView(CommonListMixin):
             username=self.kwargs['username']
         )
 
-        if (self.request.user == self.user):
+        if self.request.user == self.user:
 
             return (
                 self.model.objects.select_related('author')
@@ -183,7 +182,7 @@ class ProfileListView(CommonListMixin):
                 .order_by("-pub_date")
             )
         queryset = super().get_queryset()
-        return queryset.select_related('author')
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
